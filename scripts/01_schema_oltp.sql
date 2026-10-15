@@ -159,7 +159,7 @@ CREATE TABLE merchants (
 
     category_code VARCHAR(10) NOT NULL,
 
-    location POINT NOT NULL SRID 4326,
+    location POINT NOT NULL,
 
     city VARCHAR(50) NOT NULL,
 
