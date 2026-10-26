@@ -124,11 +124,13 @@ WHERE td.status = 'COMPLETED'
   AND (
       sender_user.risk_level IN ('HIGH', 'CRITICAL')
       OR receiver_user.risk_level IN ('HIGH', 'CRITICAL')
-      OR fn_risk_category(
-          fn_transaction_risk_score(
-              td.amount,
-              td.transaction_type
-          )
+      OR (
+          fn_risk_category(
+              fn_transaction_risk_score(
+                  td.amount,
+                  td.transaction_type
+              )
+          ) COLLATE utf8mb4_unicode_ci
       ) IN ('HIGH', 'CRITICAL')
   );
 

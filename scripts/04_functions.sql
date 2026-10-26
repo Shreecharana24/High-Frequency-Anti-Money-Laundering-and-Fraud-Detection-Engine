@@ -89,6 +89,8 @@ CREATE FUNCTION fn_risk_category(
     p_risk_score INT
 )
 RETURNS VARCHAR(10)
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci
 DETERMINISTIC
 NO SQL
 BEGIN

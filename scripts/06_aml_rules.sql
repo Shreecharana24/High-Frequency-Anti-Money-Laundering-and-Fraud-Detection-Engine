@@ -322,4 +322,26 @@ WITH ordered_transactions AS (
             PARTITION BY sender_account_id
             ORDER BY created_at, transaction_id
             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS cumulative_amount
+
+    FROM transactions
+    WHERE status = 'COMPLETED'
+)
+SELECT
+    transaction_id,
+    sender_account_id,
+    receiver_account_id,
+    amount,
+    currency,
+    created_at,
+    previous_transaction_at,
+    TIMESTAMPDIFF(
+        SECOND,
+        previous_transaction_at,
+        created_at
+    ) AS seconds_since_previous_transaction,
+    cumulative_transaction_count,
+    cumulative_amount
+FROM ordered_transactions
+ORDER BY sender_account_id, created_at, transaction_id;
  
