@@ -1,42 +1,63 @@
-version: "3.9"
-
 services:
   mysql:
     image: mysql:8.0
-    container_name: aml-mysql
-    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: aml_bank_db
       MYSQL_USER: aml_user
       MYSQL_PASSWORD: aml_pass
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./config/mysql.cnf:/etc/mysql/conf.d/mysql.cnf:ro
-    command: --default-authentication-plugin=mysql_native_password
+      - ./scripts/01_schema_oltp.sql:/docker-entrypoint-initdb.d/01_schema_oltp.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
-    container_name: aml-clickhouse
-    restart: unless-stopped
     ports:
       - "8123:8123"
       - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./config/clickhouse_users.xml:/etc/clickhouse-server/users.d/demo-user.xml:ro
       - ./config/clickhouse_init.sql:/docker-entrypoint-initdb.d/01_clickhouse_init.sql:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  grafana:
-    image: grafana/grafana:latest
-    container_name: aml-grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
+  generator:
+    build: .
+    command: python scripts/generator.py --inject-fraud
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: aml_user
+      MYSQL_PASSWORD: aml_pass
+      MYSQL_DATABASE: aml_bank_db
     depends_on:
-      - mysql
-      - clickhouse
+      mysql:
+        condition: service_healthy
+
+  detector:
+    build: .
+    command: python scripts/detector.py
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: aml_user
+      MYSQL_PASSWORD: aml_pass
+      MYSQL_DATABASE: aml_bank_db
+      CLICKHOUSE_HOST: clickhouse
+    depends_on:
+      mysql:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
 
 volumes:
   mysql_data:
