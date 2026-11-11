@@ -11,6 +11,11 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts/01_schema_oltp.sql:/docker-entrypoint-initdb.d/01_schema_oltp.sql:ro
+      - ./scripts/02_stored_procedures.sql:/docker-entrypoint-initdb.d/02_stored_procedures.sql:ro
+      - ./scripts/03_triggers.sql:/docker-entrypoint-initdb.d/03_triggers.sql:ro
+      - ./scripts/04_functions.sql:/docker-entrypoint-initdb.d/04_functions.sql:ro
+      - ./scripts/05_views.sql:/docker-entrypoint-initdb.d/05_views.sql:ro
+      - ./scripts/08_seed_data.sql:/docker-entrypoint-initdb.d/08_seed_data.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
       interval: 5s

@@ -228,9 +228,39 @@ JOIN compliance_officers co
 JOIN fraud_rules fr
     ON ta.rule_id = fr.rule_id;
 
-
 -- ============================================================================
--- VIEW 6: SUSPICIOUS MERCHANT ACTIVITY
+-- VIEW 6: FRAUD ALERT REPORT
+-- ============================================================================
+-- Exposes detector alerts with the rule, transaction, account, and reviewer
+-- context needed by an operations dashboard.
+-- ============================================================================
+
+CREATE OR REPLACE VIEW v_fraud_alert_report AS
+SELECT
+    fa.alert_id,
+    fa.alert_key,
+    fa.detected_at,
+    fa.status AS alert_status,
+    fa.severity,
+    fa.risk_score,
+    fa.title,
+    fa.summary,
+    fa.transaction_id,
+    fa.account_id,
+    fr.rule_code,
+    fr.description AS fraud_rule_description,
+    co.officer_id AS assigned_officer_id,
+    co.officer_name AS assigned_officer_name,
+    fa.resolved_at,
+    fa.resolution_notes
+FROM fraud_alerts fa
+JOIN fraud_rules fr
+    ON fa.rule_id = fr.rule_id
+LEFT JOIN compliance_officers co
+    ON fa.assigned_officer_id = co.officer_id;
+
+
+-- VIEW 7: SUSPICIOUS MERCHANT ACTIVITY
 -- ============================================================================
 -- Summarizes completed merchant payments by merchant.
 -- This is a reporting view, not by itself a fraud determination.

@@ -303,6 +303,136 @@ CREATE TABLE transaction_audits (
         REFERENCES fraud_rules(rule_id)
 ) ENGINE = InnoDB;
 
+-- Stores detector-generated alerts independently from human review records.
+CREATE TABLE fraud_alerts (
+    alert_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    transaction_id BIGINT NULL,
+
+    account_id BIGINT NULL,
+
+    rule_id BIGINT NOT NULL,
+
+    alert_key VARCHAR(255) NOT NULL UNIQUE,
+
+    severity ENUM(
+        'LOW',
+        'MEDIUM',
+        'HIGH',
+        'CRITICAL'
+    ) NOT NULL,
+
+    risk_score INT NOT NULL,
+
+    status ENUM(
+        'OPEN',
+        'INVESTIGATING',
+        'CLEARED',
+        'ESCALATED',
+        'REPORTED'
+    ) NOT NULL DEFAULT 'OPEN',
+
+    title VARCHAR(200) NOT NULL,
+
+    summary TEXT NOT NULL,
+
+    detected_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    assigned_officer_id BIGINT NULL,
+
+    resolved_at TIMESTAMP(3) NULL,
+
+    resolution_notes TEXT NULL,
+
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+        ON UPDATE CURRENT_TIMESTAMP(3),
+
+    CONSTRAINT chk_alert_risk_score
+        CHECK (risk_score >= 0),
+
+    CONSTRAINT fk_alert_transaction
+        FOREIGN KEY (transaction_id)
+        REFERENCES transactions(transaction_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_alert_account
+        FOREIGN KEY (account_id)
+        REFERENCES accounts(account_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_alert_rule
+        FOREIGN KEY (rule_id)
+        REFERENCES fraud_rules(rule_id),
+
+    CONSTRAINT fk_alert_officer
+        FOREIGN KEY (assigned_officer_id)
+        REFERENCES compliance_officers(officer_id)
+        ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+-- Stores explainable facts supporting each detector-generated alert.
+CREATE TABLE fraud_alert_evidence (
+    evidence_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    alert_id BIGINT NOT NULL,
+
+    evidence_type ENUM(
+        'TRANSACTION',
+        'ACCOUNT',
+        'COUNTERPARTY',
+        'TIME_WINDOW',
+        'AMOUNT_AGGREGATE',
+        'GRAPH_PATH',
+        'CUSTOMER_RISK'
+    ) NOT NULL,
+
+    evidence_data JSON NOT NULL,
+
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    CONSTRAINT fk_evidence_alert
+        FOREIGN KEY (alert_id)
+        REFERENCES fraud_alerts(alert_id)
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+-- Tracks each execution of a configured detection rule.
+CREATE TABLE rule_execution_runs (
+    run_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    rule_id BIGINT NOT NULL,
+
+    execution_started_at TIMESTAMP(3) NOT NULL,
+
+    execution_finished_at TIMESTAMP(3) NULL,
+
+    execution_status ENUM(
+        'RUNNING',
+        'SUCCEEDED',
+        'FAILED'
+    ) NOT NULL DEFAULT 'RUNNING',
+
+    records_scanned BIGINT NOT NULL DEFAULT 0,
+
+    alerts_created BIGINT NOT NULL DEFAULT 0,
+
+    error_message TEXT NULL,
+
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    CONSTRAINT chk_records_scanned
+        CHECK (records_scanned >= 0),
+
+    CONSTRAINT chk_alerts_created
+        CHECK (alerts_created >= 0),
+
+    CONSTRAINT fk_run_rule
+        FOREIGN KEY (rule_id)
+        REFERENCES fraud_rules(rule_id)
+) ENGINE = InnoDB;
+
 
 CREATE INDEX idx_accounts_user
     ON accounts(user_id);
@@ -330,3 +460,21 @@ CREATE INDEX idx_audits_transaction
 
 CREATE INDEX idx_audits_rule
     ON transaction_audits(rule_id);
+
+CREATE INDEX idx_alerts_transaction
+    ON fraud_alerts(transaction_id);
+
+CREATE INDEX idx_alerts_account
+    ON fraud_alerts(account_id);
+
+CREATE INDEX idx_alerts_status_severity
+    ON fraud_alerts(status, severity, detected_at);
+
+CREATE INDEX idx_alerts_rule
+    ON fraud_alerts(rule_id);
+
+CREATE INDEX idx_evidence_alert
+    ON fraud_alert_evidence(alert_id);
+
+CREATE INDEX idx_rule_runs_rule_time
+    ON rule_execution_runs(rule_id, execution_started_at);
