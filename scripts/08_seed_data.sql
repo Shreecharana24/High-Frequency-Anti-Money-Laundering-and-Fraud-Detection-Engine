@@ -12,6 +12,7 @@ USE aml_bank_db;
 SET FOREIGN_KEY_CHECKS = 0;
 
 TRUNCATE TABLE fraud_alert_evidence;
+TRUNCATE TABLE fraud_alert_review_history;
 TRUNCATE TABLE fraud_alerts;
 TRUNCATE TABLE rule_execution_runs;
 TRUNCATE TABLE transaction_audits;
@@ -255,6 +256,20 @@ VALUES
     (8, 8, 'ACCOUNT', JSON_OBJECT('account_id', 9, 'account_age_days', 3)),
     (9, 9, 'COUNTERPARTY', JSON_OBJECT('merchant_id', 4, 'country', 'GBR')),
     (10, 10, 'AMOUNT_AGGREGATE', JSON_OBJECT('signals', 3, 'risk_score', 98));
+
+INSERT INTO fraud_alert_review_history
+    (review_id, alert_id, officer_id, action_type, previous_status, new_status, note)
+VALUES
+    (1, 1, 1, 'ASSIGNED', NULL, 'OPEN', 'Assigned for initial review'),
+    (2, 2, 2, 'ASSIGNED', NULL, 'OPEN', 'Assigned to velocity specialist'),
+    (3, 3, 3, 'NOTE_ADDED', 'OPEN', 'OPEN', 'Reviewed incoming and outgoing timing'),
+    (4, 4, 4, 'STATUS_CHANGED', 'OPEN', 'ESCALATED', 'Escalated for multi-hop investigation'),
+    (5, 5, 5, 'ASSIGNED', NULL, 'OPEN', 'Assigned for high-value review'),
+    (6, 6, 6, 'STATUS_CHANGED', 'OPEN', 'INVESTIGATING', 'Customer risk context requested'),
+    (7, 7, 7, 'STATUS_CHANGED', 'OPEN', 'CLEARED', 'Merchant activity verified'),
+    (8, 8, 8, 'NOTE_ADDED', 'OPEN', 'OPEN', 'Account opening date reviewed'),
+    (9, 9, 9, 'ASSIGNED', NULL, 'OPEN', 'Assigned for geography review'),
+    (10, 10, 10, 'STATUS_CHANGED', 'OPEN', 'REPORTED', 'Synthetic report workflow example');
 
 INSERT INTO rule_execution_runs
     (run_id, rule_id, execution_started_at, execution_finished_at,

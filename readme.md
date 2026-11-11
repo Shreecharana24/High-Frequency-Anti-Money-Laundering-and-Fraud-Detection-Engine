@@ -46,6 +46,8 @@ ClickHouse creates its transaction mirror from
   configured structuring, velocity, pass-through, multi-hop, high-value, and
   high-risk-customer rules. It persists deduplicated alerts and evidence in
   `fraud_alerts` and `fraud_alert_evidence`.
+- **api** — Provides alert review, transaction, rule, metrics, and health
+  endpoints on port 8000.
 
 The generator is bounded by default:
 
@@ -58,6 +60,40 @@ Use `--rate` to control transactions per second and `--max-amount` to cap
 individual transfers. A transfer rejected for insufficient funds is reported
 and retried; the generator stops cleanly when the selected sender has less than
 $100 available.
+
+## Backend API
+
+The API is available at `http://localhost:8000`. Interactive OpenAPI
+documentation is available at `http://localhost:8000/docs`.
+
+Useful endpoints:
+
+```text
+GET   /health
+GET   /api/v1/alerts
+GET   /api/v1/alerts/{alert_id}
+PATCH /api/v1/alerts/{alert_id}
+POST  /api/v1/alerts/{alert_id}/notes
+GET   /api/v1/transactions
+GET   /api/v1/rules
+GET   /api/v1/metrics
+```
+
+Assign and move an alert into investigation:
+
+```bash
+curl -X PATCH http://localhost:8000/api/v1/alerts/1 \
+  -H 'Content-Type: application/json' \
+  -d '{"assigned_officer_id": 1, "status": "INVESTIGATING"}'
+```
+
+Add a review note:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/alerts/1/notes \
+  -H 'Content-Type: application/json' \
+  -d '{"officer_id": 1, "note": "Reviewed transaction timing and counterparties."}'
+```
 
 ## Start from a clean database
 

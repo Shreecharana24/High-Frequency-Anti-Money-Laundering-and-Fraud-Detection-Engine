@@ -398,6 +398,50 @@ CREATE TABLE fraud_alert_evidence (
         ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
+-- Stores every human assignment, status change, and review note.
+CREATE TABLE fraud_alert_review_history (
+    review_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    alert_id BIGINT NOT NULL,
+
+    officer_id BIGINT NOT NULL,
+
+    action_type ENUM(
+        'ASSIGNED',
+        'STATUS_CHANGED',
+        'NOTE_ADDED'
+    ) NOT NULL,
+
+    previous_status ENUM(
+        'OPEN',
+        'INVESTIGATING',
+        'CLEARED',
+        'ESCALATED',
+        'REPORTED'
+    ) NULL,
+
+    new_status ENUM(
+        'OPEN',
+        'INVESTIGATING',
+        'CLEARED',
+        'ESCALATED',
+        'REPORTED'
+    ) NULL,
+
+    note TEXT NULL,
+
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    CONSTRAINT fk_review_alert
+        FOREIGN KEY (alert_id)
+        REFERENCES fraud_alerts(alert_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_review_officer
+        FOREIGN KEY (officer_id)
+        REFERENCES compliance_officers(officer_id)
+) ENGINE = InnoDB;
+
 -- Tracks each execution of a configured detection rule.
 CREATE TABLE rule_execution_runs (
     run_id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -475,6 +519,9 @@ CREATE INDEX idx_alerts_rule
 
 CREATE INDEX idx_evidence_alert
     ON fraud_alert_evidence(alert_id);
+
+CREATE INDEX idx_review_history_alert_time
+    ON fraud_alert_review_history(alert_id, created_at);
 
 CREATE INDEX idx_rule_runs_rule_time
     ON rule_execution_runs(rule_id, execution_started_at);
