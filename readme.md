@@ -15,10 +15,11 @@ creates alerts. It is not connected to a live bank transaction system.
 
 1. **Transaction data:** MySQL is the source of truth for customers, accounts,
    transactions, alerts, and investigation history.
-2. **Detection:** The Python detector checks transactions against configured
-   AML rules and stores alerts and their supporting evidence in MySQL.
-3. **Analytics:** The detector also mirrors transaction data into ClickHouse
-   for analytical use.
+2. **Detection:** The Python detector mirrors transactions into ClickHouse and
+   runs the AML detection queries there. It stores alerts and their supporting
+   evidence in MySQL.
+3. **Analytics store:** ClickHouse holds the analytical transaction mirror;
+   MySQL remains the source of truth and serves the dashboard API.
 4. **Operations API:** The FastAPI backend lets authenticated compliance
    officers review alerts and access the operations data allowed by their
    clearance level.
@@ -85,10 +86,12 @@ ClickHouse creates its transaction mirror from
   transactions update both account balances and transaction/event history. It
   waits for an authorized request from the dashboard before generating a
   1,000-row batch.
+- **clickhouse** — Stores an incremental mirror of MySQL transactions. The
+  detector executes the configured AML analytics against this mirror.
 - **detector** — Mirrors new MySQL transactions into ClickHouse and runs the
   configured structuring, velocity, pass-through, multi-hop, high-value, and
-  high-risk-customer rules. It persists deduplicated alerts and evidence in
-  `fraud_alerts` and `fraud_alert_evidence`.
+  high-risk-customer rules there. It persists deduplicated alerts and evidence
+  in MySQL tables `fraud_alerts` and `fraud_alert_evidence`.
 - **api** — Provides alert review, transaction, rule, metrics, and health
   endpoints and serves the dashboard on port 8000. Only compliance officers
   sign in; bank customers in `users` are monitored records and do not have
@@ -170,6 +173,18 @@ automatically. Apply both new support-table scripts once:
 ```powershell
 Get-Content -Raw scripts/07_officer_auth.sql | docker compose exec -T mysql mysql -uaml_user -paml_pass aml_bank_db
 Get-Content -Raw scripts/07_transaction_generation.sql | docker compose exec -T mysql mysql -uaml_user -paml_pass aml_bank_db
+```
+
+For an existing ClickHouse volume, stop the detector, add the new mirror
+columns, and clear the mirror so the detector can rebuild it with customer risk
+and currency data:
+
+```powershell
+docker compose stop detector
+docker compose exec clickhouse clickhouse-client --query "ALTER TABLE aml_detection.transactions ADD COLUMN IF NOT EXISTS currency LowCardinality(String)"
+docker compose exec clickhouse clickhouse-client --query "ALTER TABLE aml_detection.transactions ADD COLUMN IF NOT EXISTS sender_risk_level LowCardinality(String)"
+docker compose exec clickhouse clickhouse-client --query "TRUNCATE TABLE aml_detection.transactions"
+docker compose up -d detector
 ```
 
 The API stores password hashes (not plaintext passwords), issues revocable

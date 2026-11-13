@@ -1,7 +1,6 @@
 import json
 import os
 import time
-from collections.abc import Callable
 from datetime import datetime
 
 import clickhouse_connect
@@ -10,95 +9,94 @@ import mysql.connector
 from demo_common import mysql_connection
 
 
-RuleQuery = Callable[[mysql.connector.cursor.MySQLCursorDict], list[dict]]
-
-
-def _query_rows(cursor: mysql.connector.cursor.MySQLCursorDict, query: str) -> list[dict]:
-    cursor.execute(query)
-    return list(cursor.fetchall())
+def _query_rows(
+    clickhouse: clickhouse_connect.driver.Client, query: str
+) -> list[dict]:
+    result = clickhouse.query(query)
+    return [dict(zip(result.column_names, row)) for row in result.result_rows]
 
 
 def _rule_queries() -> dict[str, tuple[str, str, str]]:
     return {
         "AML_STRUCTURING": (
             """
-            SELECT anchor.transaction_id, anchor.sender_account_id,
-                   COUNT(*) AS transaction_count, SUM(candidate.amount) AS total_amount,
-                   MIN(anchor.created_at) AS window_start
-            FROM transactions anchor
-            JOIN transactions candidate
+            SELECT anchor.transaction_id AS transaction_id,
+                   anchor.sender_account_id AS sender_account_id,
+                   count() AS transaction_count,
+                   sum(candidate.amount) AS total_amount,
+                   min(anchor.created_at) AS window_start
+            FROM aml_detection.transactions AS anchor
+            INNER JOIN aml_detection.transactions AS candidate
               ON candidate.sender_account_id = anchor.sender_account_id
              AND candidate.currency = anchor.currency
-             AND candidate.status = 'COMPLETED'
-             AND candidate.amount < 10000
-             AND candidate.created_at >= anchor.created_at
-             AND candidate.created_at < anchor.created_at + INTERVAL 24 HOUR
             WHERE anchor.status = 'COMPLETED'
               AND anchor.amount < 10000
+              AND candidate.status = 'COMPLETED'
+              AND candidate.amount < 10000
+              AND candidate.created_at >= anchor.created_at
+              AND candidate.created_at < addHours(anchor.created_at, 24)
             GROUP BY anchor.transaction_id, anchor.sender_account_id
-            HAVING COUNT(*) >= 3
+            HAVING count() >= 3
             """,
             "HIGH",
             "Possible structuring: repeated sub-threshold transfers in 24 hours",
         ),
         "AML_VELOCITY": (
             """
-            SELECT anchor.transaction_id, anchor.sender_account_id,
-                   COUNT(*) AS transaction_count, SUM(candidate.amount) AS total_amount,
-                   MIN(anchor.created_at) AS window_start
-            FROM transactions anchor
-            JOIN transactions candidate
+            SELECT anchor.transaction_id AS transaction_id,
+                   anchor.sender_account_id AS sender_account_id,
+                   count() AS transaction_count,
+                   sum(candidate.amount) AS total_amount,
+                   min(anchor.created_at) AS window_start
+            FROM aml_detection.transactions AS anchor
+            INNER JOIN aml_detection.transactions AS candidate
               ON candidate.sender_account_id = anchor.sender_account_id
              AND candidate.currency = anchor.currency
-             AND candidate.status = 'COMPLETED'
-             AND candidate.created_at >= anchor.created_at
-             AND candidate.created_at < anchor.created_at + INTERVAL 10 MINUTE
             WHERE anchor.status = 'COMPLETED'
+              AND candidate.status = 'COMPLETED'
+              AND candidate.created_at >= anchor.created_at
+              AND candidate.created_at < addMinutes(anchor.created_at, 10)
             GROUP BY anchor.transaction_id, anchor.sender_account_id
-            HAVING COUNT(*) >= 5
+            HAVING count() >= 5
             """,
             "CRITICAL",
             "High transaction velocity: five or more transfers in ten minutes",
         ),
         "AML_PASS_THROUGH": (
             """
-            SELECT i.incoming_transaction_id AS transaction_id,
-                   i.account_id AS sender_account_id,
-                   o.outgoing_transaction_id AS related_transaction_id,
-                   TIMESTAMPDIFF(MINUTE, i.received_at, o.sent_at) AS minutes_between,
-                   i.incoming_amount, o.outgoing_amount
-            FROM (
-                SELECT transaction_id AS incoming_transaction_id,
-                       receiver_account_id AS account_id, amount AS incoming_amount,
-                       currency, created_at AS received_at
-                FROM transactions WHERE status = 'COMPLETED'
-            ) i
-            JOIN (
-                SELECT transaction_id AS outgoing_transaction_id,
-                       sender_account_id AS account_id, amount AS outgoing_amount,
-                       currency, created_at AS sent_at
-                FROM transactions WHERE status = 'COMPLETED'
-            ) o ON o.account_id = i.account_id
-              AND o.currency = i.currency
-              AND o.sent_at >= i.received_at
-              AND o.sent_at <= i.received_at + INTERVAL 60 MINUTE
-            WHERE o.outgoing_amount <= i.incoming_amount
+            SELECT incoming.transaction_id AS transaction_id,
+                   incoming.receiver_account_id AS sender_account_id,
+                   outgoing.transaction_id AS related_transaction_id,
+                   dateDiff('minute', incoming.created_at, outgoing.created_at)
+                       AS minutes_between,
+                   incoming.amount AS incoming_amount,
+                   outgoing.amount AS outgoing_amount
+            FROM aml_detection.transactions AS incoming
+            INNER JOIN aml_detection.transactions AS outgoing
+              ON outgoing.sender_account_id = incoming.receiver_account_id
+             AND outgoing.currency = incoming.currency
+            WHERE incoming.status = 'COMPLETED'
+              AND outgoing.status = 'COMPLETED'
+              AND outgoing.created_at >= incoming.created_at
+              AND outgoing.created_at <= addMinutes(incoming.created_at, 60)
+              AND outgoing.amount <= incoming.amount
             """,
             "HIGH",
             "Rapid pass-through: received funds were sent onward within one hour",
         ),
         "AML_MULTI_HOP": (
             """
-            SELECT first_tx.transaction_id, first_tx.sender_account_id,
+            SELECT first_tx.transaction_id AS transaction_id,
+                   first_tx.sender_account_id AS sender_account_id,
                    second_tx.receiver_account_id AS destination_account_id,
                    first_tx.receiver_account_id AS intermediary_account_id
-            FROM transactions first_tx
-            JOIN transactions second_tx
+            FROM aml_detection.transactions AS first_tx
+            INNER JOIN aml_detection.transactions AS second_tx
               ON second_tx.sender_account_id = first_tx.receiver_account_id
-             AND second_tx.status = 'COMPLETED'
-             AND second_tx.created_at >= first_tx.created_at
-             AND second_tx.created_at <= first_tx.created_at + INTERVAL 24 HOUR
             WHERE first_tx.status = 'COMPLETED'
+              AND second_tx.status = 'COMPLETED'
+              AND second_tx.created_at >= first_tx.created_at
+              AND second_tx.created_at <= addHours(first_tx.created_at, 24)
               AND first_tx.sender_account_id <> second_tx.receiver_account_id
             """,
             "CRITICAL",
@@ -106,8 +104,10 @@ def _rule_queries() -> dict[str, tuple[str, str, str]]:
         ),
         "AML_HIGH_VALUE": (
             """
-            SELECT transaction_id, sender_account_id, amount
-            FROM transactions
+            SELECT transaction_id AS transaction_id,
+                   sender_account_id AS sender_account_id,
+                   amount AS amount
+            FROM aml_detection.transactions
             WHERE status = 'COMPLETED' AND amount >= 10000
             """,
             "HIGH",
@@ -115,12 +115,12 @@ def _rule_queries() -> dict[str, tuple[str, str, str]]:
         ),
         "AML_HIGH_RISK_CUSTOMER": (
             """
-            SELECT t.transaction_id, t.sender_account_id, u.risk_level
-            FROM transactions t
-            JOIN accounts a ON a.account_id = t.sender_account_id
-            JOIN users u ON u.user_id = a.user_id
-            WHERE t.status = 'COMPLETED'
-              AND u.risk_level IN ('HIGH', 'CRITICAL')
+            SELECT transaction_id AS transaction_id,
+                   sender_account_id AS sender_account_id,
+                   sender_risk_level AS risk_level
+            FROM aml_detection.transactions
+            WHERE status = 'COMPLETED'
+              AND sender_risk_level IN ('HIGH', 'CRITICAL')
             """,
             "HIGH",
             "High-risk customer activity: sender has elevated customer risk",
@@ -181,7 +181,10 @@ def _create_alert(
         cursor.close()
 
 
-def _process_rules(connection: mysql.connector.MySQLConnection) -> int:
+def _process_rules(
+    connection: mysql.connector.MySQLConnection,
+    clickhouse: clickhouse_connect.driver.Client,
+) -> int:
     cursor = connection.cursor(dictionary=True)
     try:
         rule_ids = _ensure_rule_ids(cursor)
@@ -190,7 +193,7 @@ def _process_rules(connection: mysql.connector.MySQLConnection) -> int:
             rule_id = rule_ids.get(rule_code)
             if rule_id is None:
                 raise RuntimeError(f"Configured detection rule is missing: {rule_code}")
-            rows = _query_rows(cursor, query)
+            rows = _query_rows(clickhouse, query)
             run_started = datetime.now()
             cursor.execute(
                 """
@@ -234,11 +237,14 @@ def _mirror_transactions(
         ).result_rows[0][0]
         mysql_cursor.execute(
             """
-            SELECT transaction_id, sender_account_id, receiver_account_id,
-                   amount, created_at, status
-            FROM transactions
-            WHERE transaction_id > %s
-            ORDER BY transaction_id
+            SELECT t.transaction_id, t.sender_account_id, t.receiver_account_id,
+                   t.amount, t.currency, t.created_at, t.status,
+                   u.risk_level AS sender_risk_level
+            FROM transactions t
+            JOIN accounts a ON a.account_id = t.sender_account_id
+            JOIN users u ON u.user_id = a.user_id
+            WHERE t.transaction_id > %s
+            ORDER BY t.transaction_id
             """,
             (current,),
         )
@@ -252,8 +258,10 @@ def _mirror_transactions(
                         row["sender_account_id"],
                         row["receiver_account_id"],
                         row["amount"],
+                        row["currency"],
                         row["created_at"],
                         row["status"],
+                        row["sender_risk_level"],
                     )
                     for row in rows
                 ],
@@ -262,8 +270,10 @@ def _mirror_transactions(
                     "sender_account_id",
                     "receiver_account_id",
                     "amount",
+                    "currency",
                     "created_at",
                     "status",
+                    "sender_risk_level",
                 ],
             )
         return len(rows)
@@ -279,7 +289,7 @@ def main() -> None:
     )
     while True:
         mirrored = _mirror_transactions(mysql, clickhouse)
-        alerts = _process_rules(mysql)
+        alerts = _process_rules(mysql, clickhouse)
         if mirrored or alerts:
             print(
                 f"Processed {mirrored} new transactions and created {alerts} new alerts",
