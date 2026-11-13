@@ -2,8 +2,9 @@
 -- 08_seed_data.sql
 -- Deterministic development data for the AML operations platform.
 --
--- Every reference and operational table receives at least ten rows. The
--- dataset contains both normal activity and known synthetic risk patterns.
+-- Reference and operational tables receive deterministic development rows.
+-- The dataset contains normal activity and known synthetic risk patterns.
+-- Authentication accounts and sessions are cleared and intentionally not seeded.
 -- It is safe to run only on a fresh development database.
 -- ============================================================================
 
@@ -19,6 +20,9 @@ TRUNCATE TABLE transaction_audits;
 TRUNCATE TABLE transactions;
 TRUNCATE TABLE transaction_event_log;
 TRUNCATE TABLE account_balance_history;
+TRUNCATE TABLE transaction_generation_jobs;
+TRUNCATE TABLE compliance_officer_sessions;
+TRUNCATE TABLE compliance_officer_accounts;
 TRUNCATE TABLE accounts;
 TRUNCATE TABLE user_organization_roles;
 TRUNCATE TABLE user_kyc_profiles;

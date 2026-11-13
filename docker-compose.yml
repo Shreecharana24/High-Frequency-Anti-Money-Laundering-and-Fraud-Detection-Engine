@@ -15,6 +15,8 @@ services:
       - ./scripts/03_triggers.sql:/docker-entrypoint-initdb.d/03_triggers.sql:ro
       - ./scripts/04_functions.sql:/docker-entrypoint-initdb.d/04_functions.sql:ro
       - ./scripts/05_views.sql:/docker-entrypoint-initdb.d/05_views.sql:ro
+      - ./scripts/07_officer_auth.sql:/docker-entrypoint-initdb.d/07_officer_auth.sql:ro
+      - ./scripts/07_transaction_generation.sql:/docker-entrypoint-initdb.d/07_transaction_generation.sql:ro
       - ./scripts/08_seed_data.sql:/docker-entrypoint-initdb.d/08_seed_data.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
@@ -39,7 +41,7 @@ services:
 
   generator:
     build: .
-    command: python scripts/generator.py --inject-fraud
+    command: python scripts/generator.py --worker
     environment:
       MYSQL_HOST: mysql
       MYSQL_USER: aml_user

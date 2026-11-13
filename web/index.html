@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101b2c">
+    <title>Sentinel | AML Operations</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <main id="login-view" class="login-layout">
+      <section class="login-story">
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true">S</span>
+          <span>Sentinel<span class="brand-sub">AML OPERATIONS</span></span>
+        </div>
+        <div class="story-copy">
+          <p class="eyebrow">BANK COMPLIANCE OPERATIONS</p>
+          <h1>See the signal.<br><span>Move with confidence.</span></h1>
+          <p class="story-description">
+            A focused workspace for investigating transaction alerts, reviewing
+            evidence, and coordinating compliance decisions.
+          </p>
+        </div>
+        <div class="login-footnote">
+          <span class="pulse-dot"></span>
+          Secure staff access · Customer accounts are not dashboard logins
+        </div>
+      </section>
+      <section class="login-panel">
+        <div class="login-card">
+          <p class="eyebrow">OFFICER PORTAL</p>
+          <h2>Welcome back</h2>
+          <p class="muted">Sign in with your compliance officer account.</p>
+          <form id="login-form" class="form-stack">
+            <label for="login-email">Work email</label>
+            <input id="login-email" name="email" type="email" autocomplete="username" placeholder="name@bank.com" required>
+            <label for="login-password">Password</label>
+            <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+            <p id="login-error" class="form-error" role="alert" hidden></p>
+            <button class="button button-primary button-wide" type="submit">
+              <span>Sign in</span><span aria-hidden="true">→</span>
+            </button>
+          </form>
+          <p class="login-help">Need access? Ask your system administrator to create an officer account.</p>
+        </div>
+        <div class="login-footer">Internal monitoring workspace <span>·</span> v1.0</div>
+      </section>
+    </main>
+
+    <div id="app-view" class="app-layout" hidden>
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-mark" aria-hidden="true">S</span>
+          <span>Sentinel<span class="brand-sub">AML OPERATIONS</span></span>
+        </div>
+        <div class="workspace-label">WORKSPACE</div>
+        <nav id="main-nav" class="main-nav" aria-label="Main navigation">
+          <button class="nav-link active" data-page="overview"><span class="nav-icon">◫</span>Overview</button>
+          <button class="nav-link" data-page="alerts"><span class="nav-icon">◎</span>Alert queue<span id="nav-alert-count" class="nav-count"></span></button>
+          <button class="nav-link" data-page="transactions" data-min-role="LEVEL_2"><span class="nav-icon">↗</span>Transactions</button>
+          <button class="nav-link" data-page="rules"><span class="nav-icon">⌘</span>Detection rules</button>
+          <button class="nav-link" data-page="officers" data-min-role="ADMIN"><span class="nav-icon">♙</span>Officer access</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="environment-card">
+            <span class="environment-dot"></span>
+            <span><strong>Monitoring online</strong><small>Operations environment</small></span>
+          </div>
+          <div class="profile-row">
+            <div id="profile-avatar" class="avatar">CO</div>
+            <div class="profile-copy"><strong id="profile-name">Officer</strong><small id="profile-role">LEVEL_1</small></div>
+            <button id="logout-button" class="icon-button logout-button" type="button" aria-label="Sign out" title="Sign out">↪</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <div class="mobile-brand"><span class="brand-mark" aria-hidden="true">S</span> Sentinel</div>
+          <div class="breadcrumb"><span>Operations</span><span class="breadcrumb-separator">/</span><strong id="page-title">Overview</strong></div>
+          <div class="topbar-right">
+            <span class="secure-label"><span class="secure-dot"></span>Secure session</span>
+            <div id="topbar-avatar" class="avatar avatar-small">CO</div>
+            <button id="topbar-logout" class="icon-button topbar-logout" type="button" aria-label="Sign out" title="Sign out">↪</button>
+          </div>
+        </header>
+        <section id="page-content" class="page-content" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <div id="dialog-root"></div>
+    <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>
